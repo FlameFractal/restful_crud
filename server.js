@@ -49,6 +49,53 @@ function checkPermission(req,role){ //signed in, signed in with correct role
     return true
 }
 
+function filter(data, filterVar, val){
+    console.log(filterVar + ' ' + val)
+    if(filterVar>=1 && filterVar<=5 && isNaN(parseInt(val))) //ensure val is integer for cases 1-5
+        filterVar = -1
+    if(filterVar==-1 || val==-1)
+        return data
+    switch(filterVar){
+        case 1:  //boxes with length more than val
+            return data.filter(function(p){
+                return p.length>val 
+            })  
+            break;
+        case 2:  //boxes with breadth more than val
+            return data.filter(function(p){
+                return p.breadth>val
+            })  
+            break;
+        case 3:  //boxes with height more than val
+            return data.filter(function(p){
+                return p.height>val
+            })  
+            break;
+        case 4:  //boxes with area more than val
+            return data.filter(function(p){
+                return p.area>val
+            })  
+            break;
+        case 5:  //boxes with volume more than val
+            return data.filter(function(p){
+                return p.volume>val
+            })  
+            break;
+        case 6:  //boxes with username 
+            return data.filter(function(p){
+                return p.created_by===val
+            })  
+            break;
+        case 7:  //boxes with date greater than val
+            return data.filter(function(p){
+                return p.date>val
+            })  
+            break;
+        default:  // default, no filtering
+            return data
+    }
+}
+
 /* API Endpoints */
 app.post('/createUser', function (req, res) {
     
@@ -104,7 +151,7 @@ app.post('/login', function (req, res) {
 app.post('/add', function(req, res) {
     if(!checkPermission(req,'staff'))
         return res.status(500).send(JSON.stringify({'success': 'false', 'err':'Insufficient permission'}))
- 
+
     if (!req.query.length || !req.query.breadth || !req.query.height || isNaN(parseInt(req.query.length)) || isNaN(parseInt(req.query.breadth)) || isNaN(parseInt(req.query.height)))
         return res.status(500).send(JSON.stringify({'success': 'false', 'err':'Missing value'}))
 
@@ -126,7 +173,7 @@ app.post('/add', function(req, res) {
 app.post('/update', function(req, res) {
     if (!checkPermission(req, 'staff'))
         return res.status(500).send(JSON.stringify({ 'success': 'false', 'err': 'Insufficient permission' }))
-        
+
     if(!req.query.cubo_id)
         return res.status(500).send(JSON.stringify({ 'success': 'false', 'err': 'Missing cubo_id'}))
     
@@ -138,9 +185,9 @@ app.post('/update', function(req, res) {
     pool.query('SELECT * FROM "s_cuboid" WHERE cubo_id = $1', [req.query.cubo_id], function (err, result) {
         if (err)
             return res.status(500).send(JSON.stringify({ 'success': 'false', 'err': err.toString() }));
-            else{
-                if (result.rows.length === 0) {
-                    return res.status(404).send(JSON.stringify({ 'success': 'false', 'err': 'cubo_id doesnt exist' }))
+        else{
+            if (result.rows.length === 0) {
+                return res.status(404).send(JSON.stringify({ 'success': 'false', 'err': 'cubo_id doesnt exist' }))
             } else {
                 oldCuboid = result.rows[0]    
                 if (req.query.length && !isNaN(parseInt(req.query.length)))
@@ -168,7 +215,7 @@ app.delete('/delete', function(req, res) {
         return res.status(500).send(JSON.stringify({ 'success': 'false', 'err': 'Insufficient permission' }))
     if (!req.query.cubo_id)
         return res.status(404).send(JSON.stringify({ 'success': 'false', 'err': 'Missing cubo_id' }))
-
+    
     pool.query('SELECT * FROM "s_cuboid" WHERE cubo_id = $1', [req.query.cubo_id], function (err, result) {
         if (err)
             return res.status(500).send(JSON.stringify({ 'success': 'false', 'err': err.toString()}));
@@ -189,14 +236,20 @@ app.delete('/delete', function(req, res) {
         }
     });        
 });
-
+    
 app.get('/listAll', function(req, res) {
+    filterVar = -1 // default, no filtering
+    val=-1
+    if (!isNaN(parseInt(req.query.filterVar)) && req.query.val){
+        filterVar = parseInt(req.query.filterVar);
+        val = req.query.val;
+    }
     if(checkPermission(req,'staff')){
         pool.query('SELECT * from "s_cuboid"', function(err, result){
             if(err)
                 return res.status(500).send(JSON.stringify({'success':'false','err':err.toString()}))
             else{
-                return res.status(200).send(JSON.stringify({'success':'true','data':result.rows}))
+                return res.status(200).send(JSON.stringify({ 'success': 'true', 'data': filter(result.rows, filterVar, val)}))
             }
         })
     } else {
@@ -204,20 +257,28 @@ app.get('/listAll', function(req, res) {
             if (err)
                 return res.status(500).send(JSON.stringify({ 'success': 'false', 'err': err.toString() }))
             else {
-                return res.status(200).send(JSON.stringify({ 'success': 'true', 'data': result.rows }))
+                return res.status(200).send(JSON.stringify({ 'success': 'true', 'data': filter(result.rows, filterVar, val)}))
             }
         })
     }
 });
-
+    
 app.get('/listMine', function(req, res) {
+    filterVar = -1 // default, no filtering
+    val=-1
+    if (!isNaN(parseInt(req.query.filterVar)) && req.query.val) {
+        filterVar = parseInt(req.query.filterVar);
+        val = req.query.val;
+    }
+    if (req.query.filter == 6 || req.query.filter == 7) // listMine doesn't allow filter by username/date.
+        filterVar = -1
     if(!checkPermission(req,'staff'))
         return res.status(404).send(JSON.stringify({ 'success': 'false', 'err': 'Insufficient permission'}))
     pool.query('SELECT * from "s_cuboid" WHERE created_by=$1',[req.session.username],function(err, result){
         if(err)
             return res.status(500).send(JSON.stringify({ 'success': 'false', 'err': err.toString()}))
         else{
-            return res.status(200).send(JSON.stringify({ 'success': 'true', 'data': result.rows }))
+            return res.status(200).send(JSON.stringify({ 'success': 'true', 'data': filter(result.rows, filterVar, val)}))
         }
     })
 });
