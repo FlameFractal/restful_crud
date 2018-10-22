@@ -19,3 +19,7 @@ A basic RESTful CRUD API using Node.JS and Postgres
 JSON Responses
 {'success':'true/false', 'err':'if any', 'data':data}
 ```
+
+### ToDo
+- Write better readme
+  - how to run the code for eg could be added 
